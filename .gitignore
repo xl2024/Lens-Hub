@@ -1,0 +1,12 @@
+__pycache__/
+.venv/
+venv/
+.cache/
+huggingface/
+.huggingface_cache/
+.temp/
+slices/
+*.pt
+runner.py
+setup.py
+lens.ipynb
