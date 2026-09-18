@@ -11,6 +11,7 @@ from jlens.vis import SliceData, _meaningful_token_mask, _ranks_of
 jlens.configure_logging()
 
 from src.talens import TaylorLens
+from src.lilens import LinearLens
 
 
 def apply_jlens(
@@ -68,7 +69,7 @@ def apply_jlens(
 
 def compute_slice_lens(
     model: LensModel,
-    lens: JacobianLens | TaylorLens,
+    lens: JacobianLens | TaylorLens | LinearLens,
     prompt: str,
     *,
     top_n: int = 10,
@@ -89,6 +90,8 @@ def compute_slice_lens(
             raise ValueError("lens has no fitted layers (jacobians is empty)")
         elif isinstance(lens, TaylorLens):
             raise ValueError("lens has no fitted layers (taylors is empty)")
+        elif isinstance(lens, LinearLens):
+            raise ValueError("lens has no fitted layers (mappings is empty)")
         else:
             raise
 
@@ -127,6 +130,11 @@ def compute_slice_lens(
             return model.unembed(residual).float().detach()  # [seq_len, vocab_size]
         elif isinstance(lens, TaylorLens):
             if layer in lens.jacobians:
+                residual = lens.transport(residual, layer)
+            # else: layer == final_layer, J = I -> this row is the model's output.
+            return model.unembed(residual).float().detach()  # [seq_len, vocab_size]
+        elif isinstance(lens, LinearLens):
+            if layer in lens.mappings:
                 residual = lens.transport(residual, layer)
             # else: layer == final_layer, J = I -> this row is the model's output.
             return model.unembed(residual).float().detach()  # [seq_len, vocab_size]
