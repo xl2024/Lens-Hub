@@ -1,3 +1,10 @@
+# Copyright 2026 X. Liu
+# Copyright 2026 Anthropic PBC
+# SPDX-License-Identifier: Apache-2.0
+#
+# NOTICE OF MODIFICATION:
+# This file was modified from `jlens.fitting` to remotely fit talens (TaylorLens) with nnsight.
+
 from __future__ import annotations
 
 import logging
@@ -15,8 +22,7 @@ from src.talens import TaylorLens
 
 logger = logging.getLogger("jlens")
 
-#: Positions before this index are excluded from the Jacobian average; early
-#: positions act as attention sinks and have atypical residual statistics.
+#: Positions before this index are excluded; early positions act as attention sinks and have atypical residual statistics.
 SKIP_FIRST_N_POSITIONS = 16
 
 
@@ -31,8 +37,9 @@ def taylor_for_prompt(
     skip_first: int = SKIP_FIRST_N_POSITIONS,
     pos_stride: int = 1,
     expand_at: float | None = None,
-) -> tuple[dict[int, torch.Tensor], int, int]:
-    """Compute the per-layer Jacobian estimator ``J_l`` for one prompt.
+) -> tuple[dict[int, torch.Tensor], dict[int, torch.Tensor], int, int]:
+    """Compute the per-layer Jacobian estimator ``J_l`` and average residual 
+    at final layer ``R_l`` for one prompt.
 
     Runs one forward pass on the prompt replicated ``dim_batch`` times along
     the batch axis, retains the graph, then runs ``ceil(d_model / dim_batch)``
@@ -45,7 +52,7 @@ def taylor_for_prompt(
     Args:
         model: The model to compute Jacobians for.
         prompt: Input text.
-        source_layers: Layer indices ``l`` to compute ``J_l`` at.
+        source_layers: Layer indices ``l`` to compute ``J_l`` and ``R_l`` at.
         target_layer: Layer to take gradients with respect to. Defaults to the
             final layer; negative indices count from the end. In some cases,
             targeting the penultimate layer can give a better-conditioned
@@ -55,9 +62,11 @@ def taylor_for_prompt(
             backward FLOPs are unchanged.
         max_seq_len: Truncate the prompt to this many tokens.
         skip_first: Leading positions to exclude; see :func:`valid_position_mask`.
+        pos_stride: Fit Jacobians every this many positions.
+        expand_at: At which the Taylor approximation is expanded.
 
     Returns:
-        ``(jacobians, seq_len, n_valid_positions)``. ``jacobians`` maps each
+        ``(last_residuals, jacobians, seq_len, n_valid_positions)``. ``jacobians`` maps each
         source layer to a ``[d_model, d_model]`` fp32 CPU tensor.
     """
     nn_model = model._model
@@ -152,7 +161,7 @@ def fit_talens(
 ) -> TaylorLens:
     """Fit ``R_l`` and ``J_l`` over a list of prompts and return a :class:`TaylorLens`.
 
-    Per-prompt Jacobians from :func:`jacobian_for_prompt` are accumulated as a
+    Per-prompt Jacobians from :func:`taylor_for_prompt` are accumulated as a
     running mean. If ``checkpoint_path`` is set, the running sum is written
     every ``checkpoint_every`` prompts (atomic) and resumed from on restart.
 
@@ -162,12 +171,13 @@ def fit_talens(
             corpus size and distribution.
         source_layers: Layers to fit at. Defaults to every layer below
             ``target_layer``; negative indices count from the end.
-        target_layer: See :func:`jacobian_for_prompt`. Defaults to the final
+        target_layer: See :func:`taylor_for_prompt`. Defaults to the final
             layer; negative indices count from the end.
-        dim_batch: See :func:`jacobian_for_prompt`.
+        dim_batch: See :func:`taylor_for_prompt`.
         max_seq_len: Truncate each prompt to this many tokens.
-        skip_first: See :func:`jacobian_for_prompt`.
+        skip_first: See :func:`taylor_for_prompt`.
         pos_stride: Run through sequence every this many positions.
+        expand_at: At which the Taylor approximation is expanded.
         checkpoint_path: If set, write a resumable checkpoint here.
         checkpoint_every: Write the checkpoint every N prompts (default 1).
             ``None`` skips per-iteration writes and saves once at the end; the

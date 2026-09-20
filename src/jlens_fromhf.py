@@ -1,16 +1,9 @@
+# Copyright 2026 X. Liu
 # Copyright 2026 Anthropic PBC
 # SPDX-License-Identifier: Apache-2.0
-"""HuggingFace adapter.
-
-Wraps an already-loaded HF model as a :class:`~jlens.protocol.LensModel` so
-the rest of the package stays model-library-agnostic. Model loading
-(``from_pretrained``, device placement, dtype) stays the caller's job;
-:func:`from_hf` only locates the residual stack inside whatever it's handed.
-
-Any model library can be plugged in the same way: implement the
-:class:`~jlens.protocol.LensModel` members directly (``tests/tiny.py`` is a
-minimal example) and the rest of the package works unchanged.
-"""
+#
+# NOTICE OF MODIFICATION:
+# This file was modified from `jlens.hf` to wrap a model with the same interfaces as jlens' HFLensModel.
 
 from __future__ import annotations
 
@@ -56,9 +49,7 @@ class HFLensModel:
     Holds references into the caller's model; nothing is copied. The
     constructor mutates that model in place: every parameter gets
     ``requires_grad_(False)`` (the Jacobian fit needs grads only with respect
-    to activations), ``compile=True`` replaces each block with a
-    :func:`torch.compile` wrapper, and ``force_bos`` may set
-    ``tokenizer.add_bos_token``. Pass a model you don't otherwise need.
+    to activations), and ``force_bos`` may set ``tokenizer.add_bos_token``.
     """
 
     def __init__(
@@ -140,16 +131,11 @@ def from_hf(
     """Wrap a loaded HuggingFace model as a :class:`~jlens.protocol.LensModel`.
 
     Args:
-        hf_model: A loaded ``*ForCausalLM`` (or ``*ForConditionalGeneration``),
-            already on the target device and dtype.
-        tokenizer: The matching HF tokenizer.
+        nn_model: A loaded ``*LanguageModel`` already on the target device and dtype.
         layout: Where the residual blocks / final norm / embedding / LM head
             live inside ``hf_model``. Auto-detected for the common HF families;
             pass explicitly only for unusual layouts.
         text_module: Deprecated alias for ``layout=Layout(path=text_module)``.
-        compile: Wrap each residual block in :func:`torch.compile`. Faster
-            backward in :func:`jlens.fitting.fit` after a one-time compilation
-            cost. Do not combine with ``device_map="auto"``.
         force_bos: Some instruction-tuned checkpoints ship with
             ``add_bos_token=False``; raw-text prompts are degraded without an
             attention-sink BOS, so this sets it ``True`` by default. The

@@ -1,3 +1,10 @@
+# Copyright 2026 X. Liu
+# Copyright 2026 Anthropic PBC
+# SPDX-License-Identifier: Apache-2.0
+#
+# NOTICE OF MODIFICATION:
+# This file was modified from `jlens.fitting` to remotely fit jlens with nnsight.
+
 from __future__ import annotations
 
 import logging

@@ -1,3 +1,10 @@
+# Copyright 2026 X. Liu
+# Copyright 2026 Anthropic PBC
+# SPDX-License-Identifier: Apache-2.0
+#
+# NOTICE OF MODIFICATION:
+# This file was modified from `jlens.fitting` to remotely fit lilens (LinearLens) with nnsight.
+
 from __future__ import annotations
 
 import logging
@@ -12,8 +19,7 @@ from src.lilens import LinearLens
 
 logger = logging.getLogger("jlens")
 
-#: Positions before this index are excluded from the Jacobian average; early
-#: positions act as attention sinks and have atypical residual statistics.
+#: Positions before this index are excluded; early positions act as attention sinks and have atypical residual statistics.
 SKIP_FIRST_N_POSITIONS = 16
 
 
@@ -27,25 +33,19 @@ def fit_lilens(
     max_seq_len: int = 128,
     skip_first: int = SKIP_FIRST_N_POSITIONS,
 ) -> LinearLens:
-    """Fit ``R_l`` and ``J_l`` over a list of prompts and return a :class:`TaylorLens`.
-
-    Per-prompt Jacobians from :func:`jacobian_for_prompt` are accumulated as a
-    running mean. If ``checkpoint_path`` is set, the running sum is written
-    every ``checkpoint_every`` prompts (atomic) and resumed from on restart.
-
+    """Fit ``A_l`` and ``b_l`` over a list of prompts and return a :class:`LinearLens`.
     Args:
         model: The model to fit on.
-        prompts: Text prompts to average over. See the README for guidance on
-            corpus size and distribution.
+        prompts: Text prompts to average over.
         source_layers: Layers to fit at. Defaults to every layer below
             ``target_layer``; negative indices count from the end.
-        target_layer: See :func:`jacobian_for_prompt`. Defaults to the final
-            layer; negative indices count from the end.
+        target_layer: Defaults to the final layer; negative indices count from the end.
         max_seq_len: Truncate each prompt to this many tokens.
-        skip_first: See :func:`jacobian_for_prompt`.
+        skip_first: Positions before this index are excluded; early positions act as 
+            attention sinks and have atypical residual statistics.
 
     Returns:
-        The fitted :class:`TaylorLens`.
+        The fitted :class:`LinearLens`.
     """
     n_layers, d_model = model.n_layers, model.d_model
     source_layers, target_layer = _check_layer_indices(

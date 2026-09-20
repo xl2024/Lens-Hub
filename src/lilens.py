@@ -3,14 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # NOTICE OF MODIFICATION:
-# This file was modified from `jlens.lens` to apply ``R_l + J_l @ h`` to approximate all components between source layers and the final layer.
-"""Applying a fitted Taylor lens.
+# This file was modified from `jlens.lens` to apply ``A @ h + b`` to approximate all components between source layers and the final layer.
 
-A :class:`TaylorLens` holds the per-layer ``R_l`` and ``J_l`` matrices produced by
-:func:`talens_fitting.fit_talens`. :meth:`TaylorLens.apply` runs a forward pass and
-reads out the requested layers; :meth:`TaylorLens.transport` is the bare
-``R_l + J_l @ h`` for callers that already have residuals.
+"""Applying a fitted Linear lens.
+
+A :class:`LinearLens` holds the per-layer ``A`` and ``b`` matrices produced by
+:func:`lilens_fitting.fit_lilens`. :meth:`LinearLens.apply` runs a forward pass and
+reads out the requested layers; :meth:`LinearLens.transport` is the bare
+`` A @ h + b`` for callers that already have residuals.
 """
+
 from __future__ import annotations
 
 import os
@@ -22,15 +24,13 @@ from jlens.protocol import LensModel
 
 
 class LinearLens:
-    """A fitted Taylor lens: per-layer ``R_l`` and ``J_l`` matrices and the readout method.
+    """A fitted Linear lens: per-layer ``A`` and ``b`` matrices and the readout method.
 
     Attributes:
-        residuals: ``{layer_index: Tensor[d_model]}``. Each ``R_l``
-            is the baseline in the final-layer basis for the residual at layer ``l``.
-        jacobians: ``{layer_index: Tensor[d_model, d_model]}``. Each ``J_l``
+        mappings: ``{layer_index: Tensor[d_model+1, d_model]}``. Each ``mappings``
             maps the residual at layer ``l`` into the final-layer basis.
         source_layers: Sorted list of fitted layer indices.
-        n_prompts: Number of prompts the lens was averaged over.
+        n_prompts: Number of prompts the lens was fitted over.
         d_model: Residual-stream width.
     """
 
@@ -54,7 +54,7 @@ class LinearLens:
         )
 
     def save(self, path: str, *, dtype: torch.dtype = torch.float16) -> None:
-        """Save to ``path``. Jacobians are stored as ``dtype`` (default fp16:
+        """Save to ``path``. LinearLens are stored as ``dtype`` (default fp16:
         halves file size; entries are O(1) so the range is not a constraint
         and fp16's extra mantissa bits beat bf16 here)."""
         torch.save(
@@ -137,7 +137,7 @@ class LinearLens:
         return cls(mappings=merged, n_prompts=n_total, d_model=first.d_model)
 
     def transport(self, residual: torch.Tensor, layer: int) -> torch.Tensor:
-        """Map a residual at ``layer`` into the final-layer basis: ``R_l + J_l @ h``.
+        """Map a residual at ``layer`` into the final-layer basis: ``A @ h + b``.
 
         Args:
             residual: Tensor of shape ``[..., d_model]``.
@@ -162,16 +162,15 @@ class LinearLens:
 
         Args:
             model: The model to read out from.
-            nn_model: The model runs remotely.
             prompt: Input text.
             layers: Layers to read out at. Defaults to all of
                 :attr:`source_layers`. Must be a subset of
-                :attr:`source_layers` when ``use_jacobian`` is ``True``.
+                :attr:`source_layers` when ``use_linear`` is ``True``.
             positions: Token positions to read out (Python indexing into the
                 sequence; negative indices count from the end). ``None`` returns
                 every position.
             max_seq_len: Truncate the prompt to this many tokens.
-            use_jacobian: If ``False``, skip the ``J_l`` transport (vanilla
+            use_linear: If ``False``, skip the ``A @ h + b`` transport (vanilla
                 logit-lens baseline).
 
         Returns:
@@ -183,7 +182,7 @@ class LinearLens:
 
         Raises:
             ValueError: If any requested layer is out of range for the model,
-                or (with ``use_jacobian``) not in :attr:`source_layers`.
+                or (with ``use_linear``) not in :attr:`source_layers`.
         """
         if layers is None:
             layers = self.source_layers

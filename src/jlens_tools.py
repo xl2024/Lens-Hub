@@ -1,3 +1,10 @@
+# Copyright 2026 X. Liu
+# Copyright 2026 Anthropic PBC
+# SPDX-License-Identifier: Apache-2.0
+#
+# NOTICE OF MODIFICATION:
+# `apply_jlens` was modified from `jlens.JacobianLens.apply` to apply J-Lens with nnsight.
+# `compute_slice_lens` was modified from `jlens.vis.compute_slice` to get SliceData with nnsight.
 
 import torch
 from collections.abc import Sequence

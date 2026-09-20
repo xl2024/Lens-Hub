@@ -1,3 +1,11 @@
+# Copyright 2026 X. Liu
+# Copyright 2026 Anthropic PBC
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+This file applies J-Lens to the Q,K,V and O weight matrices of a specified head and shows top readouts.
+"""
+
 import torch
 from nnsight import LanguageModel
 

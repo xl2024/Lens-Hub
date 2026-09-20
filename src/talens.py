@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # NOTICE OF MODIFICATION:
-# This file was modified from `jlens.lens` to apply ``R_l + J_l @ h`` to approximate all components between source layers and the final layer.
+# This file was modified from `jlens.lens` to apply ``R_l + J_l @ h`` to approximate 
+# all components between source layers and the final layer.
 """Applying a fitted Taylor lens.
 
 A :class:`TaylorLens` holds the per-layer ``R_l`` and ``J_l`` matrices produced by
@@ -25,8 +26,8 @@ class TaylorLens:
     """A fitted Taylor lens: per-layer ``R_l`` and ``J_l`` matrices and the readout method.
 
     Attributes:
-        residuals: ``{layer_index: Tensor[d_model]}``. Each ``R_l``
-            is the baseline in the final-layer basis for the residual at layer ``l``.
+        residuals: ``{layer_index: Tensor[d_model]}``. Each ``R_l`` is the 
+            baseline in the final-layer basis for the residual at layer ``l``.
         jacobians: ``{layer_index: Tensor[d_model, d_model]}``. Each ``J_l``
             maps the residual at layer ``l`` into the final-layer basis.
         source_layers: Sorted list of fitted layer indices.
@@ -151,6 +152,7 @@ class TaylorLens:
         Args:
             residual: Tensor of shape ``[..., d_model]``.
             layer: Source layer index (must be in :attr:`source_layers`).
+            expand_at: At which the Taylor approximation is expanded.
         """
         R_bar = self.residuals[layer].to(residual.device)
         J_bar = self.jacobians[layer].to(residual.device)
@@ -172,17 +174,18 @@ class TaylorLens:
 
         Args:
             model: The model to read out from.
-            nn_model: The model runs remotely.
             prompt: Input text.
-            layers: Layers to read out at. Defaults to all of
-                :attr:`source_layers`. Must be a subset of
-                :attr:`source_layers` when ``use_jacobian`` is ``True``.
+            layers: Layers to read out at. Defaults to all of :attr:`source_layers`. 
+                Must be a subset of :attr:`source_layers` when ``use_jacobian`` is 
+                ``True``.
             positions: Token positions to read out (Python indexing into the
                 sequence; negative indices count from the end). ``None`` returns
                 every position.
             max_seq_len: Truncate the prompt to this many tokens.
             use_jacobian: If ``False``, skip the ``J_l`` transport (vanilla
                 logit-lens baseline).
+            expand_at: At which the Taylor approximation is expanded. Defaults to 
+                the mean of the residual.
 
         Returns:
             A triple ``(lens_logits, model_logits, input_ids)``. ``lens_logits``
